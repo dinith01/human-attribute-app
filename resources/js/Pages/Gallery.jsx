@@ -9,6 +9,12 @@ export default function Gallery({ auth, images, filters }) {
         image: null,
     });
 
+    useEffect(() => {
+        if (errors?.image) {
+            alert(errors.image);
+        }
+    }, [errors]);
+
     const [values, setValues] = useState({
         hair_color: filters.hair_color || '',
         eye_color: filters.eye_color || '',
