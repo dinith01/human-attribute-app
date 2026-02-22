@@ -23,7 +23,8 @@ class ImageController extends Controller
 
         // Save image record in DB
         $image = Image::create([
-            'file_path' => $path
+            'file_path' => $path,
+            'analysis_status' => 'pending',
         ]);
 
         // 🔥 THIS LINE sends work to background

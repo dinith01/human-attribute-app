@@ -24,13 +24,11 @@ class AnalyzeImageJob implements ShouldQueue
 
     public function handle(): void
     {
-        $image = Image::with('attributes')->find($this->imageId);
+        $image = Image::find($this->imageId);
         if (!$image) return;
 
-        // Read file
         $imageContent = Storage::disk('public')->get($image->file_path);
 
-        // Call HF (timeouts + retry)
         $response = Http::retry(2, 1000)
             ->connectTimeout(5)
             ->timeout(90)
@@ -39,19 +37,17 @@ class AnalyzeImageJob implements ShouldQueue
 
         $data = $response->json();
 
-        // If failed -> mark as failed (and optionally delete file)
-        if ($response->failed() || (($data['status'] ?? '') === 'Failed')) {
-            // Optional: store status in DB if you add a column
-            // $image->update(['analysis_status' => 'failed']);
+        // If HF failed OR returned "Failed"
+        if ($response->failed() || !is_array($data) || (($data['status'] ?? '') === 'Failed')) {
 
-            // Or delete the image record + file:
-            Storage::disk('public')->delete($image->file_path);
-            $image->delete();
+            // optional: delete file to save disk space
+            // Storage::disk('public')->delete($image->file_path);
 
+            $image->analysis_status = 'failed';
+            $image->save();
             return;
         }
 
-        // Save attributes
         foreach ($data as $key => $value) {
             if (in_array($key, ['status', 'message'])) continue;
 
@@ -61,7 +57,10 @@ class AnalyzeImageJob implements ShouldQueue
             ]);
         }
 
-        // Optional: mark as completed
-        // $image->update(['analysis_status' => 'done']);
+        $image->analysis_status = 'completed';
+        $image->save();
     }
+
+
+    
 }

@@ -22,6 +22,28 @@ export default function Gallery({ auth, images, filters }) {
         earrings: filters.earrings === '1' || filters.earrings === true,
     });
 
+
+
+
+useEffect(() => {
+    const hasPending = images.some(img => img.analysis_status === 'pending');
+
+    if (!hasPending) return;
+
+    const interval = setInterval(() => {
+        router.reload({
+            preserveScroll: true,
+            preserveState: true,
+        });
+    }, 5000); // every 5 seconds
+
+    return () => clearInterval(interval);
+}, [images]);
+
+
+
+
+
     // --- 2. DEBOUNCED SEARCH LOGIC ---
     const isFirstRender = useRef(true);
 
@@ -232,8 +254,26 @@ export default function Gallery({ auth, images, filters }) {
                                         </div>
 
                                         {/* Smart Tags Area */}
+                                        {/* Status Badge */}
+                                        {img.analysis_status === 'pending' && (
+                                        <div className="mb-2">
+                                            <span className="text-xs bg-yellow-500/20 border border-yellow-400/30 text-yellow-100 px-2 py-1 rounded-md">
+                                            Processing...
+                                            </span>
+                                        </div>
+                                        )}
+
+                                        {img.analysis_status === 'failed' && (
+                                        <div className="mb-2">
+                                            <span className="text-xs bg-red-500/20 border border-red-400/30 text-red-100 px-2 py-1 rounded-md">
+                                            Failed (No human)
+                                            </span>
+                                        </div>
+                                        )}
+
+                                        {/* Smart Tags Area */}
                                         <div className="flex flex-wrap gap-2 content-start min-h-[60px]">
-                                            {img.attributes.map(attr => renderAttributeBadge(attr))}
+                                        {img.attributes.map(attr => renderAttributeBadge(attr))}
                                         </div>
                                     </div>
                                     
