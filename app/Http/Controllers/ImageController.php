@@ -8,59 +8,28 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
+use App\Jobs\AnalyzeImageJob;
 
 class ImageController extends Controller
 {
     public function store(Request $request)
     {
-        // 1. Validate
         $request->validate([
-            'image' => 'required|image|mimes:jpeg,png,jpg,gif|max:5048',
-        ]);
+        'image' => 'required|image|mimes:jpeg,png,jpg,gif|max:5048',
+         ]);
 
-        // 2. Save file to disk
+        // Save image to disk
         $path = $request->file('image')->store('uploads', 'public');
 
-        // --- THE FIX IS HERE ---
-        // We use Storage::disk to read the file. This works for Tests AND Real usage.
-        $imageContent = Storage::disk('public')->get($path);
-
-        // 3. Send to API (WITH TIMEOUT + RETRY)
-        $response = Http::retry(2, 1000)          // retry 2 times, wait 1 second between retries
-            ->connectTimeout(5)                   // connection timeout (seconds)
-            ->timeout(60)                         // total request timeout (seconds)
-            ->attach('image', $imageContent, 'photo.jpg')
-            ->post('https://dinith01-blip-api.hf.space/analyze');
-
-        // 4. Human Check Logic
-        // If the API crashes OR explicitly says "Failed", we reject it.
-       $data = $response->json();
-
-        if ($response->failed() || (($data['status'] ?? '') === 'Failed')) {
-            Storage::disk('public')->delete($path);
-
-            $msg = $data['message'] ?? 'Not a human identified';
-            return back()->withErrors(['image' => $msg]);
-        }
-
-        // 5. Save Image to DB
+        // Save image record in DB
         $image = Image::create([
             'file_path' => $path
         ]);
 
-        // 6. Save Attributes
-        $attributes = $response->json();
-        foreach ($attributes as $key => $value) {
-            // Ignore system keys
-            if (in_array($key, ['status', 'message'])) continue;
+        // 🔥 THIS LINE sends work to background
+        AnalyzeImageJob::dispatch($image->id);
 
-            $image->attributes()->create([
-                'key' => $key,
-                'value' => (string) $value // Cast to string to be safe
-            ]);
-        }
-
-        return redirect()->back()->with('success', 'Image analyzed and saved!');
+        return redirect()->back()->with('success', 'Image uploaded. Analysis started...');
     }
 
     public function index(Request $request)
